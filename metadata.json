@@ -1,0 +1,6 @@
+{
+  "name": "Lumina Studio — Beauty & AR Camera",
+  "description": "Ứng dụng Beauty Camera và AR Filter thời gian thực trên PC, hỗ trợ USB Camera và nhận diện khuôn mặt MediaPipe Face Landmarker hoàn toàn cục bộ.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
