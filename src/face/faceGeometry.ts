@@ -146,26 +146,78 @@ export function extractFaceRegions(
     y: headCrownCenter.y + sinR * earSpan,
   };
 
-  // Ear lobes for Earrings (landmarks 132 & 361 sit right at the ear-jaw junction)
-  const rawEarA = pt(132);
-  const rawEarB = pt(361);
-  const screenLeftEar = rawEarA.x <= rawEarB.x ? rawEarA : rawEarB;
-  const screenRightEar = rawEarA.x <= rawEarB.x ? rawEarB : rawEarA;
+  // -------------------------------------------------------------------------
+  // EAR LOBES FOR EARRINGS (Định vị chuẩn xác dái tai thật - Không bị lệch vào má hay bay ra ngoài):
+  // MediaPipe FaceMesh ear landmarks:
+  // Landmark #234 (Left) and #454 (Right): Tragus (mốc sụn trước lỗ tai thật).
+  // Landmark #93 (Left) and #323 (Right): Góc xương hàm ngay dưới tai.
+  //
+  // Dái tai thật nằm ở phần đáy tai ngoài:
+  // - Về chiều dọc: nằm thấp hơn lỗ tai/tragus (ngang tầm cánh mũi/nhân trung)
+  // - Về chiều ngang: nằm chếch ra ngoài rìa tai (outward) so với mốc tragus
+  // -------------------------------------------------------------------------
+  const tragusA = pt(234);
+  const tragusB = pt(454);
+  const baseA = pt(93);
+  const baseB = pt(323);
 
+  // Identify screen-left vs screen-right ear
+  const isTragusALeft = tragusA.x <= tragusB.x;
+  const screenLeftTragus = isTragusALeft ? tragusA : tragusB;
+  const screenRightTragus = isTragusALeft ? tragusB : tragusA;
+
+  const screenLeftBase = isTragusALeft ? baseA : baseB;
+  const screenRightBase = isTragusALeft ? baseB : baseA;
+
+  // Downward unit vector along head axis
+  const downUnitX = sinR;
+  const downUnitY = cosR;
+
+  // The anatomical earlobe sits right at the lower junction of the tragus (#234/#454) and jaw ramus (#93/#323)
+  // We use 0.70 tragus + 0.30 base to stick directly to the real earlobe flesh
+  const midLeftEarBase = {
+    x: (screenLeftTragus.x * 0.70 + screenLeftBase.x * 0.30),
+    y: (screenLeftTragus.y * 0.70 + screenLeftBase.y * 0.30),
+  };
+  const midRightEarBase = {
+    x: (screenRightTragus.x * 0.70 + screenRightBase.x * 0.30),
+    y: (screenRightTragus.y * 0.70 + screenRightBase.y * 0.30),
+  };
+
+  // Lateral outward shift from face center to outside ear (tightened to 0.015 face width so it sits ON earlobe)
+  const earOutwardDist = faceBox.width * 0.015;
+  const earDownwardDist = faceBox.height * 0.022;
+
+  // Screen Left earlobe (ôm sát dái tai trái thật):
   const leftEarLobe: Point2D = {
-    x: screenLeftEar.x - cosR * (faceBox.width * 0.035),
-    y: screenLeftEar.y - sinR * (faceBox.width * 0.035) + faceBox.height * 0.02,
+    x: midLeftEarBase.x - cosR * earOutwardDist + downUnitX * earDownwardDist,
+    y: midLeftEarBase.y - sinR * earOutwardDist + downUnitY * earDownwardDist,
   };
 
+  // Screen Right earlobe (ôm sát dái tai phải thật):
   const rightEarLobe: Point2D = {
-    x: screenRightEar.x + cosR * (faceBox.width * 0.035),
-    y: screenRightEar.y + sinR * (faceBox.width * 0.035) + faceBox.height * 0.02,
+    x: midRightEarBase.x + cosR * earOutwardDist + downUnitX * earDownwardDist,
+    y: midRightEarBase.y + sinR * earOutwardDist + downUnitY * earDownwardDist,
   };
 
-  // Neck center below chin (152) along the downward cranial axis for Necklace
+  // -------------------------------------------------------------------------
+  // NECK CENTER FOR NECKLACE (Định vị hõm cổ / xương quai xanh bám sát chuyển động):
+  // Trục cổ dọc tự nhiên nối từ sống mũi (#168) qua cằm (#152) rủ xuống ngực
+  // -------------------------------------------------------------------------
+  const noseBridgeTop = pt(168);
+  const neckDx = chinCenter.x - noseBridgeTop.x;
+  const neckDy = chinCenter.y - noseBridgeTop.y;
+  const neckDist = Math.hypot(neckDx, neckDy) || 1;
+  const neckAxisX = neckDx / neckDist;
+  const neckAxisY = neckDy / neckDist;
+
+  // Khoảng cách từ cằm xuống hõm ức / xương quai xanh (tự động co giãn theo độ cúi/ngửa đầu pitchDeltaZ)
+  const neckPitchFactor = Math.max(0.24, 0.42 - pitchDeltaZ * 0.42);
+  const neckLength = faceBox.height * neckPitchFactor;
+
   const neckCenter: Point2D = {
-    x: chinCenter.x - upUnitX * (faceBox.width * 0.34),
-    y: chinCenter.y - upUnitY * (faceBox.width * 0.34),
+    x: chinCenter.x + neckAxisX * neckLength,
+    y: chinCenter.y + neckAxisY * neckLength,
   };
 
   return {

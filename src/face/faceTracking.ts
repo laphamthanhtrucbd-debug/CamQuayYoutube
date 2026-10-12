@@ -30,10 +30,52 @@ export class FaceTracker {
     if (!this.smoothedLandmarks || this.smoothedLandmarks.length !== rawLandmarks.length) {
       this.smoothedLandmarks = rawLandmarks.map((lm) => ({ ...lm }));
     } else {
-      const alpha = 0.62; // Responsive yet jitter-free smoothing factor
+      // Mouth/jaw landmarks that move dynamically during speech
+      // Upper lip & lower lip indices in MediaPipe FaceMesh
+      const isMouthIndex = (idx: number) =>
+        (idx >= 61 && idx <= 88) ||
+        (idx >= 178 && idx <= 191) ||
+        (idx >= 291 && idx <= 324) ||
+        (idx >= 375 && idx <= 415);
+
+      // Eye contour & eyelid indices in MediaPipe FaceMesh
+      const isEyeIndex = (idx: number) =>
+        (idx >= 33 && idx <= 173) ||
+        (idx >= 362 && idx <= 466) ||
+        (idx >= 468 && idx <= 477);
+
       for (let i = 0; i < rawLandmarks.length; i++) {
         const prev = this.smoothedLandmarks[i];
         const curr = rawLandmarks[i];
+        const dist = Math.hypot(curr.x - prev.x, curr.y - prev.y);
+
+        // Smooth adaptive filter:
+        // Mouth points and EYES must be immediately responsive (alpha up to 0.98)
+        // so eyeliner, lashes, and mouth never lag, drift, or tear off when moving!
+        let alpha: number;
+        if (isMouthIndex(i)) {
+          // Responsive for speech lips
+          alpha = dist > 0.006 ? 0.98 : dist > 0.002 ? 0.85 : 0.60;
+        } else if (isEyeIndex(i)) {
+          // High-responsiveness for eyes: sticks tightly to eyelids at all head speeds
+          alpha = dist > 0.004 ? 0.98 : dist > 0.001 ? 0.85 : 0.60;
+        } else {
+          // Rigid face contour, neck, forehead: smooth out webcam sensor noise and micro-tremor
+          if (dist > 0.015) {
+            // Fast head turn: catch up immediately
+            alpha = 0.95;
+          } else if (dist > 0.004) {
+            // Normal deliberate head motion
+            alpha = 0.75;
+          } else if (dist > 0.001) {
+            // Subtle slow movement
+            alpha = 0.45;
+          } else {
+            // Micro-jitter / sensor noise: damping
+            alpha = 0.22;
+          }
+        }
+
         prev.x = prev.x * (1 - alpha) + curr.x * alpha;
         prev.y = prev.y * (1 - alpha) + curr.y * alpha;
         prev.z = prev.z * (1 - alpha) + curr.z * alpha;

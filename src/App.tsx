@@ -1,17 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Play } from 'lucide-react';
 import { AudioDevice, CameraDevice } from './types/camera';
 import {
   AccessoryEffectSettings,
   AllEffectsState,
   AREffectSettings,
+  BackgroundEffectSettings,
   CapturedMediaItem,
   ColorFilterSettings,
   EyebrowEffectSettings,
   EyeEffectSettings,
+  EyelinerEffectSettings,
+  EyeMakeupEffectSettings,
   FaceShapeSettings,
   LipEffectSettings,
   NoseEffectSettings,
   SkinEffectSettings,
+  OutfitEffectSettings,
 } from './types/effects';
 import { cameraManager } from './camera/cameraManager';
 import { enumerateAudioDevices, enumerateCameraDevices } from './camera/cameraDevices';
@@ -25,62 +30,102 @@ import { EyePanel } from './components/EyePanel/EyePanel';
 import { NosePanel } from './components/NosePanel/NosePanel';
 import { LipPanel } from './components/LipPanel/LipPanel';
 import { EyebrowPanel } from './components/EyebrowPanel/EyebrowPanel';
+import { EyeMakeupPanel } from './components/EyeMakeupPanel/EyeMakeupPanel';
+import { EyelinerPanel } from './components/EyelinerPanel/EyelinerPanel';
 import { ARPanel } from './components/ARPanel/ARPanel';
 import { AccessoryPanel } from './components/AccessoryPanel/AccessoryPanel';
+import { OutfitPanel } from './components/OutfitPanel/OutfitPanel';
 import { FilterPanel } from './components/FilterPanel/FilterPanel';
+import { BackgroundPanel } from './components/BackgroundPanel/BackgroundPanel';
 import { RecordPanel } from './components/RecordPanel/RecordPanel';
 import { Gallery } from './components/Gallery/Gallery';
 
-const STORAGE_KEY_EFFECTS = 'lumina_studio_saved_effects_v2';
+const STORAGE_KEY_EFFECTS = 'lumina_studio_saved_effects_v8';
 
-// Tab "Làm đẹp" (Beauty Da) tất cả mặc định tối đa 100% theo yêu cầu
+const DEFAULT_OUTFIT_SETTINGS: OutfitEffectSettings = {
+  styleId: 'none',
+  colorHex: '#DC2626',
+  secondaryColorHex: '#F59E0B',
+  patternId: 'solid',
+  patternIntensity: 60,
+  opacity: 100,
+  necklineDepth: 0,
+  shoulderWidth: 100,
+  verticalOffset: 0,
+  autoSyncNecklace: true,
+};
+
+// Chỉ xóa mụn, xóa khuyết điểm/quầng thâm và tàn nhang mặc định 100%, giữ nguyên 100% khuôn mặt và nền da thật (không làm biến dạng hay bôi bệt mặt)
 const DEFAULT_SKIN_SETTINGS: SkinEffectSettings = {
-  smooth: 100,
-  brighten: 100,
-  evenTone: 100,
+  smooth: 0,
+  brighten: 0,
+  evenTone: 0,
+  acneRemove: 100,
   blemishReduce: 100,
-  antiShine: 100,
-  soften: 100,
+  freckleRemove: 100,
+  antiShine: 0,
+  soften: 0,
 };
 
+// Giữ nguyên 100% hình dáng mắt gốc (enlarge = 0 mặc định)
 const DEFAULT_EYE_SETTINGS: EyeEffectSettings = {
-  brighten: 25,
-  sparkle: 30,
-  enlarge: 10,
-  underEyeBright: 25,
-  clarity: 20,
+  brighten: 10,
+  sparkle: 15,
+  enlarge: 0,
+  underEyeBright: 15,
+  clarity: 10,
 };
 
+// Giữ nguyên 100% hình dáng mũi gốc (slim = 0, tipRefine = 0, balance = 0 mặc định)
 const DEFAULT_NOSE_SETTINGS: NoseEffectSettings = {
-  slim: 12,
-  tipRefine: 10,
-  balance: 15,
+  slim: 0,
+  tipRefine: 0,
+  balance: 0,
 };
 
-// Trang điểm môi: độ đậm mặc định là 100% theo yêu cầu
+// Trang điểm môi: độ đậm vừa phải tự nhiên, giữ nguyên 100% dáng môi gốc (plump = 0)
 const DEFAULT_LIP_SETTINGS: LipEffectSettings = {
   colorId: 'peach-pink',
   customHex: '#E11D48',
-  intensity: 100,
-  gloss: 25,
-  plump: 10,
-  naturalBlend: 50,
+  intensity: 45,
+  gloss: 15,
+  plump: 0,
+  naturalBlend: 60,
 };
 
+// Giữ nguyên dáng lông mày gốc (archLift = 0)
 const DEFAULT_EYEBROW_SETTINGS: EyebrowEffectSettings = {
-  intensity: 15,
-  definition: 18,
+  intensity: 0,
+  definition: 0,
   colorId: 'dark-brown',
   customHex: '#4A3728',
-  archLift: 8,
+  archLift: 0,
 };
 
+const DEFAULT_EYE_MAKEUP_SETTINGS: EyeMakeupEffectSettings = {
+  styleId: 'none',
+  customHex: '#F472B6',
+  intensity: 65,
+  shimmer: 50,
+  lensIntensity: 0,
+};
+
+const DEFAULT_EYELINER_SETTINGS: EyelinerEffectSettings = {
+  styleId: 'none',
+  colorId: 'jet-black',
+  customHex: '#141416',
+  intensity: 80,
+  thickness: 55,
+  wingLength: 60,
+};
+
+// Giữ nguyên 100% cấu trúc khuôn mặt gốc, không tự ý bóp méo mặt!
 const DEFAULT_FACE_SHAPE_SETTINGS: FaceShapeSettings = {
-  slimFace: 12,
-  jawline: 12,
-  chin: 8,
-  cheekbone: 12,
-  balance: 12,
+  slimFace: 0,
+  jawline: 0,
+  chin: 0,
+  cheekbone: 0,
+  balance: 0,
 };
 
 const DEFAULT_AR_SETTINGS: AREffectSettings = {
@@ -107,6 +152,12 @@ const DEFAULT_FILTER_SETTINGS: ColorFilterSettings = {
   intensity: 85,
 };
 
+const DEFAULT_BACKGROUND_SETTINGS: BackgroundEffectSettings = {
+  mode: 'none',
+  blurStrength: 65,
+  customImageUrl: '',
+};
+
 const INITIAL_EFFECTS_STATE: AllEffectsState = {
   enabled: true,
   compareOriginal: false,
@@ -116,10 +167,14 @@ const INITIAL_EFFECTS_STATE: AllEffectsState = {
   nose: DEFAULT_NOSE_SETTINGS,
   lip: DEFAULT_LIP_SETTINGS,
   eyebrow: DEFAULT_EYEBROW_SETTINGS,
+  eyeMakeup: DEFAULT_EYE_MAKEUP_SETTINGS,
+  eyeliner: DEFAULT_EYELINER_SETTINGS,
   faceShape: DEFAULT_FACE_SHAPE_SETTINGS,
   ar: DEFAULT_AR_SETTINGS,
   accessory: DEFAULT_ACCESSORY_SETTINGS,
+  outfit: DEFAULT_OUTFIT_SETTINGS,
   colorFilter: DEFAULT_FILTER_SETTINGS,
+  background: DEFAULT_BACKGROUND_SETTINGS,
 };
 
 function loadSavedEffectsState(): AllEffectsState {
@@ -136,21 +191,36 @@ function loadSavedEffectsState(): AllEffectsState {
       nose: { ...DEFAULT_NOSE_SETTINGS, ...(parsed.nose || {}) },
       lip: { ...DEFAULT_LIP_SETTINGS, ...(parsed.lip || {}) },
       eyebrow: { ...DEFAULT_EYEBROW_SETTINGS, ...(parsed.eyebrow || {}) },
+      eyeMakeup: { ...DEFAULT_EYE_MAKEUP_SETTINGS, ...(parsed.eyeMakeup || {}) },
+      eyeliner: { ...DEFAULT_EYELINER_SETTINGS, ...(parsed.eyeliner || {}) },
       faceShape: { ...DEFAULT_FACE_SHAPE_SETTINGS, ...(parsed.faceShape || {}) },
       ar: { ...DEFAULT_AR_SETTINGS, ...(parsed.ar || {}) },
       accessory: { ...DEFAULT_ACCESSORY_SETTINGS, ...(parsed.accessory || {}) },
+      outfit: { ...DEFAULT_OUTFIT_SETTINGS, ...(parsed.outfit || {}) },
       colorFilter: { ...DEFAULT_FILTER_SETTINGS, ...(parsed.colorFilter || {}) },
+      background: { ...DEFAULT_BACKGROUND_SETTINGS, ...(parsed.background || {}) },
     };
   } catch {
     return INITIAL_EFFECTS_STATE;
   }
 }
 
-type MainCategoryTab = 'beauty' | 'face' | 'makeup' | 'ar' | 'accessory' | 'filter';
+type MainCategoryTab =
+  | 'beauty'
+  | 'face'
+  | 'makeup'
+  | 'outfit'
+  | 'accessory'
+  | 'ar'
+  | 'filter'
+  | 'background';
 type FaceSubTab = 'contour' | 'eye' | 'nose';
-type MakeupSubTab = 'lip' | 'eyebrow';
+type MakeupSubTab = 'lip' | 'eye-makeup' | 'eyeliner' | 'eyebrow';
 
 export default function App() {
+  // Fullscreen Run Mode state (entered via "Chạy" button, exited via Spacebar)
+  const [isRunMode, setIsRunMode] = useState<boolean>(false);
+
   // Camera & Real Hardware Microphone state
   const [devices, setDevices] = useState<CameraDevice[]>([]);
   const [mics, setMics] = useState<AudioDevice[]>([]);
@@ -411,341 +481,483 @@ export default function App() {
     });
   };
 
+  // Listen for Spacebar (`Space`) to exit Fullscreen Run Mode and restore all toolbars
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && isRunMode) {
+        e.preventDefault();
+        setIsRunMode(false);
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isRunMode]);
+
+  const handleEnterRunMode = useCallback(() => {
+    setIsRunMode(true);
+    if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#09090B] text-zinc-100 flex flex-col">
-      {/* 3-Zone Top Bar Contract */}
-      <header className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-800/90 bg-zinc-950/90 sticky top-0 z-30">
-        {/* Zone 1: Single text element wordmark */}
-        <a
-          href="#top"
-          onClick={(e) => e.preventDefault()}
-          className="text-xl font-semibold tracking-tight text-zinc-100 font-display whitespace-nowrap"
-        >
-          Lumina Studio
-        </a>
+      {/* 3-Zone Top Bar Contract (Hidden when in Fullscreen Run Mode) */}
+      {!isRunMode && (
+        <header className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-800/90 bg-zinc-950/90 sticky top-0 z-30">
+          {/* Zone 1: Single text element wordmark */}
+          <a
+            href="#top"
+            onClick={(e) => e.preventDefault()}
+            className="text-xl font-semibold tracking-tight text-zinc-100 font-display whitespace-nowrap"
+          >
+            Lumina Studio
+          </a>
 
-        {/* Zone 2: 6 clean text navigation links */}
-        <nav className="hidden md:flex items-center gap-5 text-sm font-medium text-zinc-400">
-          <button
-            type="button"
-            onClick={() => setActiveCategory('beauty')}
-            className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
-              activeCategory === 'beauty' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
-            }`}
-          >
-            Làm đẹp
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCategory('face')}
-            className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
-              activeCategory === 'face' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
-            }`}
-          >
-            Khuôn mặt
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCategory('makeup')}
-            className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
-              activeCategory === 'makeup' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
-            }`}
-          >
-            Trang điểm
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCategory('ar')}
-            className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
-              activeCategory === 'ar' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
-            }`}
-          >
-            Hiệu ứng
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCategory('accessory')}
-            className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
-              activeCategory === 'accessory' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
-            }`}
-          >
-            Phụ kiện
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCategory('filter')}
-            className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
-              activeCategory === 'filter' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
-            }`}
-          >
-            Bộ lọc
-          </button>
-        </nav>
+          {/* Zone 2: Clean text navigation links */}
+          <nav className="hidden md:flex items-center gap-5 text-sm font-medium text-zinc-400">
+            <button
+              type="button"
+              onClick={() => setActiveCategory('beauty')}
+              className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
+                activeCategory === 'beauty' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
+              }`}
+            >
+              Làm đẹp
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('face')}
+              className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
+                activeCategory === 'face' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
+              }`}
+            >
+              Khuôn mặt
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('makeup')}
+              className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
+                activeCategory === 'makeup' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
+              }`}
+            >
+              Trang điểm
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('ar')}
+              className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
+                activeCategory === 'ar' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
+              }`}
+            >
+              Hiệu ứng
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('accessory')}
+              className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
+                activeCategory === 'accessory' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
+              }`}
+            >
+              Phụ kiện
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('filter')}
+              className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
+                activeCategory === 'filter' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
+              }`}
+            >
+              Bộ lọc
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('background')}
+              className={`hover:text-zinc-100 transition-colors pb-0.5 cursor-pointer whitespace-nowrap ${
+                activeCategory === 'background' ? 'text-zinc-100 border-b-2 border-rose-500' : ''
+              }`}
+            >
+              Phông nền
+            </button>
+          </nav>
 
-        {/* Zone 3: Primary actions */}
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => setEffects((prev) => ({ ...prev, enabled: !prev.enabled }))}
-            className={`px-3.5 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap cursor-pointer ${
-              effects.enabled
-                ? 'bg-rose-600 text-white border-rose-500 hover:bg-rose-500'
-                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700'
-            }`}
-          >
-            {effects.enabled ? 'Đang bật Beauty' : 'Đã tắt Beauty'}
-          </button>
-          <button
-            type="button"
-            onClick={() => handlePreserveProgressNotice('toàn bộ ứng dụng')}
-            className="px-3.5 py-1.5 text-xs font-medium text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-          >
-            Lưu tiến trình
-          </button>
-        </div>
-      </header>
+          {/* Zone 3: Primary actions including "Chạy" (Full-screen Camera Run Mode) */}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleEnterRunMode}
+              title="Ẩn toàn bộ thanh công cụ và phóng to Camera toàn màn hình (Nhấn Phím Cách / Space để hiện lại)"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 rounded-lg transition-colors whitespace-nowrap cursor-pointer shadow-sm"
+            >
+              <Play className="w-3.5 h-3.5 fill-white" />
+              <span>Chạy</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setEffects((prev) => ({ ...prev, enabled: !prev.enabled }))}
+              className={`px-3.5 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap cursor-pointer ${
+                effects.enabled
+                  ? 'bg-rose-600 text-white border-rose-500 hover:bg-rose-500'
+                  : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+              }`}
+            >
+              {effects.enabled ? 'Đang bật Beauty' : 'Đã tắt Beauty'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePreserveProgressNotice('toàn bộ ứng dụng')}
+              className="px-3.5 py-1.5 text-xs font-medium text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+            >
+              Lưu tiến trình
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* Main Studio Workspace */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left/Center Viewport Column (8 cols on desktop) */}
-        <div className="lg:col-span-8 space-y-4">
-          {/* Camera & Microphone Selector Bar */}
-          <div className="px-4 py-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl">
-            <CameraSelector
-              devices={devices}
-              mics={mics}
-              activeDeviceId={activeDeviceId}
-              activeMicId={activeMicId}
-              activeMicLabel={activeMicLabel}
-              micError={micError}
-              audioStream={audioStream}
-              isMicEnabled={isMicEnabled}
-              isMirrored={isMirrored}
-              isLoading={isLoadingCamera}
-              onSelectDevice={(id) => initOrSwitchCamera(id, activeMicId || undefined)}
-              onSelectMic={handleSelectMic}
-              onToggleMicMute={handleToggleMicMute}
-              onRefreshDevices={handleRefreshDevices}
-              onToggleMirror={() => setIsMirrored((m) => !m)}
-            />
-          </div>
+      <main
+        className={
+          isRunMode
+            ? 'fixed inset-0 z-50 w-screen h-screen bg-black overflow-hidden'
+            : 'flex-1 max-w-[1440px] w-full mx-auto px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start'
+        }
+      >
+        {/* Left/Center Viewport Column (8 cols on desktop, or full screen in Run Mode) */}
+        <div className={isRunMode ? 'w-screen h-screen' : 'lg:col-span-8 space-y-4'}>
+          {/* Camera & Microphone Selector Bar (Hidden in Run Mode) */}
+          {!isRunMode && (
+            <div className="px-4 py-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl">
+              <CameraSelector
+                devices={devices}
+                mics={mics}
+                activeDeviceId={activeDeviceId}
+                activeMicId={activeMicId}
+                activeMicLabel={activeMicLabel}
+                micError={micError}
+                audioStream={audioStream}
+                isMicEnabled={isMicEnabled}
+                isMirrored={isMirrored}
+                isLoading={isLoadingCamera}
+                onSelectDevice={(id) => initOrSwitchCamera(id, activeMicId || undefined)}
+                onSelectMic={handleSelectMic}
+                onToggleMicMute={handleToggleMicMute}
+                onRefreshDevices={handleRefreshDevices}
+                onToggleMirror={() => setIsMirrored((m) => !m)}
+              />
+            </div>
+          )}
 
-          {/* Real-time Processed Camera Canvas */}
+          {/* Real-time Processed Camera Canvas (Always mounted so stream never interrupts!) */}
           <CameraPreview
             stream={stream}
             isMirrored={isMirrored}
             effects={effects}
             cameraError={cameraError}
             isLoadingCamera={isLoadingCamera}
+            isRunMode={isRunMode}
             onCanvasReady={(canvas) => {
               processedCanvasRef.current = canvas;
             }}
             onRetryCamera={() => initOrSwitchCamera(activeDeviceId || undefined, activeMicId || undefined)}
           />
 
-          {/* Recording & Photo Capture Dock */}
-          <RecordPanel
-            isRecording={isRecording}
-            recordingSeconds={recordingSeconds}
-            compareOriginal={effects.compareOriginal}
-            showLandmarks={effects.showLandmarks}
-            onCapturePhoto={handleCapturePhoto}
-            onStartRecording={handleStartRecording}
-            onStopRecording={handleStopRecording}
-            onToggleCompare={(active) =>
-              setEffects((prev) => ({ ...prev, compareOriginal: active }))
-            }
-            onToggleLandmarks={() =>
-              setEffects((prev) => ({ ...prev, showLandmarks: !prev.showLandmarks }))
-            }
-          />
+          {/* Recording & Photo Capture Dock (Hidden in Run Mode) */}
+          {!isRunMode && (
+            <RecordPanel
+              isRecording={isRecording}
+              recordingSeconds={recordingSeconds}
+              compareOriginal={effects.compareOriginal}
+              showLandmarks={effects.showLandmarks}
+              onCapturePhoto={handleCapturePhoto}
+              onStartRecording={handleStartRecording}
+              onStopRecording={handleStopRecording}
+              onToggleCompare={(active) =>
+                setEffects((prev) => ({ ...prev, compareOriginal: active }))
+              }
+              onToggleLandmarks={() =>
+                setEffects((prev) => ({ ...prev, showLandmarks: !prev.showLandmarks }))
+              }
+            />
+          )}
 
-          {/* Captured Photos & Videos Gallery */}
-          <Gallery items={galleryItems} onDelete={handleDeleteGalleryItem} />
+          {/* Captured Photos & Videos Gallery (Hidden in Run Mode) */}
+          {!isRunMode && <Gallery items={galleryItems} onDelete={handleDeleteGalleryItem} />}
         </div>
 
-        {/* Right Inspector Sidebar (4 cols on desktop) */}
-        <aside className="lg:col-span-4 bg-zinc-900/75 border border-zinc-800/90 rounded-2xl p-5 space-y-5 lg:sticky lg:top-20">
-          {/* Segmented Category Selector (6 tabs) */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-zinc-950 rounded-xl border border-zinc-800/80">
-            {(
-              [
-                { id: 'beauty', label: 'Làm đẹp' },
-                { id: 'face', label: 'Khuôn mặt' },
-                { id: 'makeup', label: 'Trang điểm' },
-                { id: 'ar', label: 'Hiệu ứng' },
-                { id: 'accessory', label: 'Phụ kiện' },
-                { id: 'filter', label: 'Bộ lọc' },
-              ] as { id: MainCategoryTab; label: string }[]
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveCategory(tab.id)}
-                className={`py-2 px-1 text-[11px] font-medium rounded-lg transition-colors truncate cursor-pointer ${
-                  activeCategory === tab.id
-                    ? 'bg-zinc-800 text-zinc-100 shadow-xs'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Sub-navigation for "Khuôn mặt" */}
-          {activeCategory === 'face' && (
-            <div className="flex items-center gap-1 p-1 bg-zinc-950/80 rounded-lg border border-zinc-800/60">
-              <button
-                type="button"
-                onClick={() => setFaceSubTab('contour')}
-                className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                  faceSubTab === 'contour'
-                    ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                Thon mặt & Hàm
-              </button>
-              <button
-                type="button"
-                onClick={() => setFaceSubTab('eye')}
-                className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                  faceSubTab === 'eye'
-                    ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                Đôi mắt
-              </button>
-              <button
-                type="button"
-                onClick={() => setFaceSubTab('nose')}
-                className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                  faceSubTab === 'nose'
-                    ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                Dáng mũi
-              </button>
+        {/* Right Inspector Sidebar (Hidden in Run Mode) */}
+        {!isRunMode && (
+          <aside className="lg:col-span-4 bg-zinc-900/75 border border-zinc-800/90 rounded-2xl p-5 space-y-5 lg:sticky lg:top-20">
+            {/* Segmented Category Selector (8 tabs) */}
+            <div className="grid grid-cols-4 sm:grid-cols-4 lg:grid-cols-4 gap-1 p-1 bg-zinc-950 rounded-xl border border-zinc-800/80">
+              {(
+                [
+                  { id: 'beauty', label: 'Làm đẹp' },
+                  { id: 'face', label: 'Khuôn mặt' },
+                  { id: 'makeup', label: 'Trang điểm' },
+                  { id: 'outfit', label: 'Trang phục' },
+                  { id: 'accessory', label: 'Phụ kiện' },
+                  { id: 'ar', label: 'Hiệu ứng' },
+                  { id: 'filter', label: 'Bộ lọc' },
+                  { id: 'background', label: 'Phông nền' },
+                ] as { id: MainCategoryTab; label: string }[]
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveCategory(tab.id)}
+                  className={`py-2 px-1 text-[11px] font-medium rounded-lg transition-colors truncate cursor-pointer text-center ${
+                    activeCategory === tab.id
+                      ? 'bg-zinc-800 text-rose-300 shadow-xs border border-zinc-700 font-semibold'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
-          )}
 
-          {/* Sub-navigation for "Trang điểm" */}
-          {activeCategory === 'makeup' && (
-            <div className="flex items-center gap-1 p-1 bg-zinc-950/80 rounded-lg border border-zinc-800/60">
-              <button
-                type="button"
-                onClick={() => setMakeupSubTab('lip')}
-                className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                  makeupSubTab === 'lip'
-                    ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                Son môi
-              </button>
-              <button
-                type="button"
-                onClick={() => setMakeupSubTab('eyebrow')}
-                className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                  makeupSubTab === 'eyebrow'
-                    ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                Lông mày
-              </button>
+            {/* Sub-navigation for "Khuôn mặt" */}
+            {activeCategory === 'face' && (
+              <div className="flex items-center gap-1 p-1 bg-zinc-950/80 rounded-lg border border-zinc-800/60">
+                <button
+                  type="button"
+                  onClick={() => setFaceSubTab('contour')}
+                  className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                    faceSubTab === 'contour'
+                      ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  Thon mặt & Hàm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFaceSubTab('eye')}
+                  className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                    faceSubTab === 'eye'
+                      ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  Đôi mắt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFaceSubTab('nose')}
+                  className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                    faceSubTab === 'nose'
+                      ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  Dáng mũi
+                </button>
+              </div>
+            )}
+
+            {/* Sub-navigation for "Trang điểm" (Son môi | Màu mắt | Eyeliner | Lông mày) */}
+            {activeCategory === 'makeup' && (
+              <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-950/80 rounded-lg border border-zinc-800/60">
+                <button
+                  type="button"
+                  onClick={() => setMakeupSubTab('lip')}
+                  className={`py-1.5 px-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                    makeupSubTab === 'lip'
+                      ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  Son môi
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMakeupSubTab('eye-makeup')}
+                  className={`py-1.5 px-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                    makeupSubTab === 'eye-makeup'
+                      ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  Màu mắt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMakeupSubTab('eyeliner')}
+                  className={`py-1.5 px-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                    makeupSubTab === 'eyeliner'
+                      ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  Eyeliner
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMakeupSubTab('eyebrow')}
+                  className={`py-1.5 px-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                    makeupSubTab === 'eyebrow'
+                      ? 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  Lông mày
+                </button>
+              </div>
+            )}
+
+            {/* Active Control Panel Content — all reset buttons preserve previous progress */}
+            <div className="min-h-[380px]">
+              {activeCategory === 'beauty' && (
+                <BeautyPanel
+                  settings={effects.skin}
+                  onChange={(skin) => setEffects((prev) => ({ ...prev, skin }))}
+                  onReset={() => handlePreserveProgressNotice('Làm đẹp da')}
+                />
+              )}
+
+              {activeCategory === 'face' && faceSubTab === 'contour' && (
+                <FacePanel
+                  settings={effects.faceShape}
+                  onChange={(faceShape) =>
+                    setEffects((prev) => ({ ...prev, faceShape }))
+                  }
+                  onReset={() => handlePreserveProgressNotice('Khuôn mặt')}
+                />
+              )}
+
+              {activeCategory === 'face' && faceSubTab === 'eye' && (
+                <EyePanel
+                  settings={effects.eye}
+                  onChange={(eye) => setEffects((prev) => ({ ...prev, eye }))}
+                  onReset={() => handlePreserveProgressNotice('Đôi mắt')}
+                />
+              )}
+
+              {activeCategory === 'face' && faceSubTab === 'nose' && (
+                <NosePanel
+                  settings={effects.nose}
+                  onChange={(nose) => setEffects((prev) => ({ ...prev, nose }))}
+                  onReset={() => handlePreserveProgressNotice('Dáng mũi')}
+                />
+              )}
+
+              {activeCategory === 'makeup' && makeupSubTab === 'lip' && (
+                <LipPanel
+                  settings={effects.lip}
+                  onChange={(lip) => setEffects((prev) => ({ ...prev, lip }))}
+                  onReset={() => handlePreserveProgressNotice('Trang điểm môi')}
+                />
+              )}
+
+              {activeCategory === 'makeup' && makeupSubTab === 'eye-makeup' && (
+                <EyeMakeupPanel
+                  settings={effects.eyeMakeup}
+                  onChange={(eyeMakeup) =>
+                    setEffects((prev) => ({ ...prev, eyeMakeup }))
+                  }
+                  onReset={() => handlePreserveProgressNotice('Trang điểm màu mắt')}
+                />
+              )}
+
+              {activeCategory === 'makeup' && makeupSubTab === 'eyeliner' && (
+                <EyelinerPanel
+                  settings={effects.eyeliner}
+                  onChange={(eyeliner) =>
+                    setEffects((prev) => ({ ...prev, eyeliner }))
+                  }
+                  onReset={() => handlePreserveProgressNotice('Kẻ mắt Eyeliner')}
+                />
+              )}
+
+              {activeCategory === 'makeup' && makeupSubTab === 'eyebrow' && (
+                <EyebrowPanel
+                  settings={effects.eyebrow}
+                  onChange={(eyebrow) =>
+                    setEffects((prev) => ({ ...prev, eyebrow }))
+                  }
+                  onReset={() => handlePreserveProgressNotice('Lông mày')}
+                />
+              )}
+
+              {activeCategory === 'ar' && (
+                <ARPanel
+                  settings={effects.ar}
+                  onChange={(ar) => setEffects((prev) => ({ ...prev, ar }))}
+                  onReset={() => handlePreserveProgressNotice('Hiệu ứng AR')}
+                />
+              )}
+
+              {activeCategory === 'outfit' && (
+                <OutfitPanel
+                  settings={effects.outfit}
+                  onChange={(outfit) => {
+                    setEffects((prev) => {
+                      const next = { ...prev, outfit };
+                      // If autoSyncNecklace is true and outfit has a recommended necklace, auto-suggest or sync
+                      if (outfit.styleId === 'ao-dai-gam' && outfit.autoSyncNecklace) {
+                        next.accessory = {
+                          ...next.accessory,
+                          necklace: true,
+                          necklaceStyle: 'ao-dai-kieng',
+                        };
+                      } else if (outfit.styleId === 'dam-da-hoi-offshoulder' && outfit.autoSyncNecklace) {
+                        next.accessory = {
+                          ...next.accessory,
+                          necklace: true,
+                          necklaceStyle: 'diamond-royal',
+                        };
+                      } else if (outfit.styleId === 'dam-co-vuong-vintage' && outfit.autoSyncNecklace) {
+                        next.accessory = {
+                          ...next.accessory,
+                          necklace: true,
+                          necklaceStyle: 'ruby-heart-collier',
+                        };
+                      }
+                      return next;
+                    });
+                  }}
+                  onReset={() => handlePreserveProgressNotice('Trang phục')}
+                />
+              )}
+
+              {activeCategory === 'accessory' && (
+                <AccessoryPanel
+                  settings={effects.accessory}
+                  onChange={(accessory) =>
+                    setEffects((prev) => ({ ...prev, accessory }))
+                  }
+                />
+              )}
+
+              {activeCategory === 'filter' && (
+                <FilterPanel
+                  settings={effects.colorFilter}
+                  onChange={(colorFilter) =>
+                    setEffects((prev) => ({ ...prev, colorFilter }))
+                  }
+                  onReset={() => handlePreserveProgressNotice('Bộ lọc màu')}
+                />
+              )}
+
+              {activeCategory === 'background' && (
+                <BackgroundPanel
+                  settings={effects.background}
+                  onChange={(background) =>
+                    setEffects((prev) => ({ ...prev, background }))
+                  }
+                  onReset={() => handlePreserveProgressNotice('Phông nền')}
+                />
+              )}
             </div>
-          )}
-
-          {/* Active Control Panel Content — all reset buttons preserve previous progress */}
-          <div className="min-h-[380px]">
-            {activeCategory === 'beauty' && (
-              <BeautyPanel
-                settings={effects.skin}
-                onChange={(skin) => setEffects((prev) => ({ ...prev, skin }))}
-                onReset={() => handlePreserveProgressNotice('Làm đẹp da')}
-              />
-            )}
-
-            {activeCategory === 'face' && faceSubTab === 'contour' && (
-              <FacePanel
-                settings={effects.faceShape}
-                onChange={(faceShape) =>
-                  setEffects((prev) => ({ ...prev, faceShape }))
-                }
-                onReset={() => handlePreserveProgressNotice('Khuôn mặt')}
-              />
-            )}
-
-            {activeCategory === 'face' && faceSubTab === 'eye' && (
-              <EyePanel
-                settings={effects.eye}
-                onChange={(eye) => setEffects((prev) => ({ ...prev, eye }))}
-                onReset={() => handlePreserveProgressNotice('Đôi mắt')}
-              />
-            )}
-
-            {activeCategory === 'face' && faceSubTab === 'nose' && (
-              <NosePanel
-                settings={effects.nose}
-                onChange={(nose) => setEffects((prev) => ({ ...prev, nose }))}
-                onReset={() => handlePreserveProgressNotice('Dáng mũi')}
-              />
-            )}
-
-            {activeCategory === 'makeup' && makeupSubTab === 'lip' && (
-              <LipPanel
-                settings={effects.lip}
-                onChange={(lip) => setEffects((prev) => ({ ...prev, lip }))}
-                onReset={() => handlePreserveProgressNotice('Trang điểm môi')}
-              />
-            )}
-
-            {activeCategory === 'makeup' && makeupSubTab === 'eyebrow' && (
-              <EyebrowPanel
-                settings={effects.eyebrow}
-                onChange={(eyebrow) =>
-                  setEffects((prev) => ({ ...prev, eyebrow }))
-                }
-                onReset={() => handlePreserveProgressNotice('Lông mày')}
-              />
-            )}
-
-            {activeCategory === 'ar' && (
-              <ARPanel
-                settings={effects.ar}
-                onChange={(ar) => setEffects((prev) => ({ ...prev, ar }))}
-                onReset={() => handlePreserveProgressNotice('Hiệu ứng AR')}
-              />
-            )}
-
-            {activeCategory === 'accessory' && (
-              <AccessoryPanel
-                settings={effects.accessory}
-                onChange={(accessory) =>
-                  setEffects((prev) => ({ ...prev, accessory }))
-                }
-              />
-            )}
-
-            {activeCategory === 'filter' && (
-              <FilterPanel
-                settings={effects.colorFilter}
-                onChange={(colorFilter) =>
-                  setEffects((prev) => ({ ...prev, colorFilter }))
-                }
-                onReset={() => handlePreserveProgressNotice('Bộ lọc màu')}
-              />
-            )}
-          </div>
-        </aside>
+          </aside>
+        )}
       </main>
 
-      {/* Non-intrusive Toast Notification */}
-      {toastMessage && (
+      {/* Toast Notification (Hidden in Run Mode) */}
+      {!isRunMode && toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 px-4 py-2.5 bg-zinc-900 border border-zinc-700 text-xs font-medium text-zinc-100 rounded-xl shadow-lg">
           {toastMessage}
         </div>

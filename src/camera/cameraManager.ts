@@ -5,6 +5,7 @@ import {
   selectPreferredDefaultCamera,
   selectPreferredDefaultMic,
 } from './cameraDevices';
+import { cleanAudioStream } from '../utils/audioCleaner';
 
 export class CameraManager {
   private currentVideoStream: MediaStream | null = null;
@@ -95,24 +96,23 @@ export class CameraManager {
 
     if (!targetCameraId && cameras.length > 0 && cameras[0].label) {
       const preferredCam = selectPreferredDefaultCamera(cameras);
-      targetCameraId = preferredCam?.deviceId;
+      targetCameraId = preferredCam?.deviceId || cameras[0].deviceId;
     }
 
     let videoStream: MediaStream | null = null;
     let lastOpenError: unknown = null;
 
-    // 2. Try opening the target camera (or default camera to unlock hardware labels in a single pass without stopping/reopening)
+    // 2. Try opening the target camera
     try {
       videoStream = await tryOpenVideoDevice(targetCameraId);
     } catch (err) {
       lastOpenError = err;
     }
 
-    // 3. Re-enumerate now that permission is granted or if target failed, and try every available real hardware camera
+    // 3. If target camera failed, try other available physical cameras as robust fallback
     cameras = await enumerateCameraDevices();
 
     if (!videoStream) {
-      // Sort cameras so real USB / physical cameras are tried before virtual cameras (OBS, ManyCam, etc.)
       const orderedCandidates = [...cameras].sort((a, b) => {
         if (a.isUSB !== b.isUSB) return a.isUSB ? -1 : 1;
         return a.index - b.index;
@@ -143,18 +143,18 @@ export class CameraManager {
       if (lastOpenError instanceof DOMException) {
         if (lastOpenError.name === 'NotReadableError' || lastOpenError.name === 'TrackStartError') {
           throw new Error(
-            'Camera đang bị phần mềm khác chiếm giữ độc quyền (NotReadableError). Lưu ý trên Windows: Nếu bạn đang mở ứng dụng "Camera" của Windows để kiểm tra, trình duyệt sẽ bị chặn không mở được cam. Hãy ĐÓNG ứng dụng Camera của Windows rồi bấm "Thử kết nối lại Camera".'
+            'Camera đang bị phần mềm khác chiếm giữ độc quyền (NotReadableError). Hãy ĐÓNG ứng dụng khác đang dùng Camera rồi thử lại.'
           );
         }
         if (lastOpenError.name === 'NotAllowedError' || lastOpenError.name === 'PermissionDeniedError') {
           throw new Error(
-            'Trình duyệt đang chặn quyền truy cập Camera (NotAllowedError). Hãy bấm vào biểu tượng ổ khóa trên thanh địa chỉ và chọn "Cho phép" (Allow) Camera.'
+            'Trình duyệt đang chặn quyền truy cập Camera. Hãy cấp quyền Camera trên thanh địa chỉ.'
           );
         }
       }
       throw lastOpenError instanceof Error
         ? lastOpenError
-        : new Error('Không thể nhận tín hiệu hình ảnh từ Camera.');
+        : new Error('Không thể mở thiết bị Camera đã chọn.');
     }
 
     // If no specific camera was requested and a non-preferred camera was opened initially,
@@ -235,49 +235,58 @@ export class CameraManager {
     }
 
     try {
-      // First check if we need to unlock audioinput labels
+      // 1. Enumerate available audioinput devices
       let mics = await enumerateAudioDevices();
+
+      // If user requested a specific micId, use it. If not, pick preferred default mic.
       let targetId = requestedMicId;
       if (!targetId && mics.length > 0 && mics[0].label) {
-        targetId = selectPreferredDefaultMic(mics)?.deviceId;
+        targetId = selectPreferredDefaultMic(mics)?.deviceId || mics[0].deviceId;
       }
 
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: false,
-          audio: targetId
-            ? {
-                deviceId: { exact: targetId },
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-              }
-            : {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-              },
-        });
-      } catch (innerErr) {
-        if (targetId) {
-          // Retry with system default hardware mic if exact ID was unplugged
-          stream = await navigator.mediaDevices.getUserMedia({
+      let rawStream: MediaStream | null = null;
+      let micError: unknown = null;
+
+      if (targetId) {
+        try {
+          rawStream = await navigator.mediaDevices.getUserMedia({
             video: false,
             audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
+              deviceId: { exact: targetId },
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: 1,
             },
           });
-        } else {
-          throw innerErr;
+        } catch (err) {
+          micError = err;
         }
       }
 
-      const audioTracks = stream.getAudioTracks();
-      if (audioTracks.length === 0 || audioTracks[0].readyState !== 'live') {
-        stream.getTracks().forEach((t) => t.stop());
+      if (!rawStream) {
+        try {
+          rawStream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            },
+          });
+        } catch (err) {
+          micError = err;
+        }
+      }
+
+      if (!rawStream) {
+        throw micError || new Error('Không thể mở thiết bị Microphone.');
+      }
+
+      // Check live track on raw stream
+      const rawAudioTracks = rawStream.getAudioTracks();
+      if (rawAudioTracks.length === 0 || rawAudioTracks[0].readyState !== 'live') {
+        rawStream.getTracks().forEach((t) => t.stop());
         return {
           stream: null,
           micId: '',
@@ -287,23 +296,30 @@ export class CameraManager {
         };
       }
 
-      const track = audioTracks[0];
-      const settings = track.getSettings();
+      const rawTrack = rawAudioTracks[0];
+      const settings = rawTrack.getSettings();
 
-      // Re-enumerate now that audio stream is active so Windows/Browser gives real hardware names
+      // Re-enumerate devices now that getUserMedia has unlocked true OS hardware labels
       mics = await enumerateAudioDevices();
       const realHardwareMics = mics.filter((m) => m.deviceId && m.label);
 
-      const resolvedId = settings.deviceId || track.label || realHardwareMics[0]?.deviceId || '';
-      const matchedDevice = realHardwareMics.find((m) => m.deviceId === settings.deviceId);
+      // Determine true resolved ID and Label
+      const resolvedId =
+        (targetId && realHardwareMics.some((m) => m.deviceId === targetId) ? targetId : null) ||
+        settings.deviceId ||
+        realHardwareMics.find((m) => m.label === rawTrack.label)?.deviceId ||
+        realHardwareMics[0]?.deviceId ||
+        '';
+
+      const matchedDevice = realHardwareMics.find((m) => m.deviceId === resolvedId);
       const resolvedLabel =
-        track.label ||
         matchedDevice?.label ||
+        rawTrack.label ||
         realHardwareMics[0]?.label ||
         '';
 
       if (!resolvedLabel) {
-        stream.getTracks().forEach((t) => t.stop());
+        rawStream.getTracks().forEach((t) => t.stop());
         return {
           stream: null,
           micId: '',
@@ -313,12 +329,15 @@ export class CameraManager {
         };
       }
 
-      this.currentAudioStream = stream;
+      // Clean audio stream: removes static, crackling ("rè rè"), and rumble without distortion or clipping
+      const cleanedStream = cleanAudioStream(rawStream);
+
+      this.currentAudioStream = cleanedStream;
       this.activeMicId = resolvedId;
       this.activeMicLabel = resolvedLabel;
 
       return {
-        stream,
+        stream: cleanedStream,
         micId: resolvedId,
         micLabel: resolvedLabel,
         mics: realHardwareMics,

@@ -26,20 +26,20 @@ export function applyEyeEffect(
     applyLocalRadialScale(ctx, sourceCanvas, regions.rightIrisCenter, eyeRadius, scaleFactor);
   }
 
-  // 2. Làm sáng vùng dưới mắt (Soft radial concealer under eyes without hard polygon borders)
+  // 2. Làm sáng vùng dưới mắt (Tự nhiên theo rãnh lệ dưới mắt, không tạo vệt trắng bệch)
   if (underEyeBright > 0) {
-    const alpha = (underEyeBright / 100) * 0.14;
-    const rx = regions.faceScale * 0.085;
-    const ry = regions.faceScale * 0.035;
-    const offsetY = regions.faceScale * 0.042;
+    const alpha = (underEyeBright / 100) * 0.085;
+    const rx = regions.faceScale * 0.078;
+    const ry = regions.faceScale * 0.028;
+    const offsetY = regions.faceScale * 0.044;
 
     const drawUnderEyeGlow = (iris: Point2D) => {
       const cx = iris.x;
       const cy = iris.y + offsetY;
       ctx.save();
       ctx.globalCompositeOperation = 'soft-light';
-      ctx.filter = 'blur(6px)';
-      ctx.fillStyle = `rgba(255, 242, 235, ${alpha.toFixed(3)})`;
+      ctx.filter = 'blur(8px)';
+      ctx.fillStyle = `rgba(255, 224, 205, ${alpha.toFixed(3)})`;
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx, ry, regions.rollAngle, 0, Math.PI * 2);
       ctx.fill();

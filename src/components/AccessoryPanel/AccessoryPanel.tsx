@@ -140,23 +140,84 @@ export const AccessoryPanel: React.FC<AccessoryPanelProps> = ({ settings, onChan
           </button>
         </div>
         {settings.earrings && (
-          <div className="grid grid-cols-1 gap-1.5 pt-1">
-            {EARRING_STYLES.map((st) => (
-              <button
-                key={st.id}
-                type="button"
-                onClick={() =>
-                  onChange({ ...settings, earringStyle: st.id as EarringStyleId })
-                }
-                className={`px-3 py-1.5 text-xs rounded-lg border text-left transition-colors cursor-pointer ${
-                  settings.earringStyle === st.id
-                    ? 'bg-rose-500/20 border-rose-500 text-rose-200 font-medium'
-                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                {st.name}
-              </button>
-            ))}
+          <div className="space-y-3 pt-1">
+            <div className="grid grid-cols-1 gap-1.5">
+              {EARRING_STYLES.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() =>
+                    onChange({ ...settings, earringStyle: st.id as EarringStyleId })
+                  }
+                  className={`p-2.5 text-xs rounded-lg border text-left transition-colors cursor-pointer flex flex-col gap-0.5 ${
+                    settings.earringStyle === st.id
+                      ? 'bg-rose-500/20 border-rose-500 text-rose-200 font-medium'
+                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <span className="font-semibold text-zinc-100">{st.name}</span>
+                  <span className="text-[11px] text-zinc-400">{st.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Fine tuning controls for earrings */}
+            <div className="pt-2 border-t border-zinc-800/60 space-y-2">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-300">Kích thước bông tai</span>
+                  <span className="font-mono-num text-zinc-400">{settings.earringScale ?? 100}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={60}
+                  max={180}
+                  value={settings.earringScale ?? 100}
+                  onChange={(e) =>
+                    onChange({ ...settings, earringScale: Number(e.target.value) })
+                  }
+                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-sky-400"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-300">Vị trí lên / xuống (Dái tai)</span>
+                  <span className="font-mono-num text-zinc-400">
+                    {(settings.earringOffsetY ?? 0) > 0 ? `+${settings.earringOffsetY}` : settings.earringOffsetY ?? 0}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-30}
+                  max={30}
+                  value={settings.earringOffsetY ?? 0}
+                  onChange={(e) =>
+                    onChange({ ...settings, earringOffsetY: Number(e.target.value) })
+                  }
+                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-sky-400"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-300">Vị trí trong / ngoài</span>
+                  <span className="font-mono-num text-zinc-400">
+                    {(settings.earringOffsetX ?? 0) > 0 ? `+${settings.earringOffsetX}` : settings.earringOffsetX ?? 0}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-30}
+                  max={30}
+                  value={settings.earringOffsetX ?? 0}
+                  onChange={(e) =>
+                    onChange({ ...settings, earringOffsetX: Number(e.target.value) })
+                  }
+                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-sky-400"
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -181,23 +242,91 @@ export const AccessoryPanel: React.FC<AccessoryPanelProps> = ({ settings, onChan
           </button>
         </div>
         {settings.necklace && (
-          <div className="grid grid-cols-1 gap-1.5 pt-1">
-            {NECKLACE_STYLES.map((st) => (
-              <button
-                key={st.id}
-                type="button"
-                onClick={() =>
-                  onChange({ ...settings, necklaceStyle: st.id as NecklaceStyleId })
-                }
-                className={`px-3 py-1.5 text-xs rounded-lg border text-left transition-colors cursor-pointer ${
-                  settings.necklaceStyle === st.id
-                    ? 'bg-rose-500/20 border-rose-500 text-rose-200 font-medium'
-                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                {st.name}
-              </button>
-            ))}
+          <div className="space-y-3 pt-1">
+            <div className="text-[11px] font-medium text-amber-400/90 flex items-center gap-1.5 bg-amber-950/20 px-2.5 py-1.5 rounded-lg border border-amber-800/30">
+              <span>✨</span>
+              <span>Chọn vòng cổ tương thích theo cổ áo & trang phục đang mặc:</span>
+            </div>
+            <div className="grid grid-cols-1 gap-1.5">
+              {NECKLACE_STYLES.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() =>
+                    onChange({ ...settings, necklaceStyle: st.id as NecklaceStyleId })
+                  }
+                  className={`p-2.5 text-xs rounded-lg border text-left transition-colors cursor-pointer flex flex-col gap-0.5 ${
+                    settings.necklaceStyle === st.id
+                      ? 'bg-rose-500/20 border-rose-500 text-rose-200 font-medium'
+                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-zinc-100">{st.name}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800/80 text-amber-300 font-medium border border-zinc-700/60">
+                      {st.outfit}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-zinc-400">{st.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Fine tuning controls for necklace to match user's real clothing neckline */}
+            <div className="pt-2 border-t border-zinc-800/60 space-y-2.5">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-300">Độ dài rủ dây chuyền (Khớp cổ áo)</span>
+                  <span className="font-mono-num text-zinc-400">{settings.necklaceLength ?? 100}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={60}
+                  max={160}
+                  value={settings.necklaceLength ?? 100}
+                  onChange={(e) =>
+                    onChange({ ...settings, necklaceLength: Number(e.target.value) })
+                  }
+                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-300">Độ rộng vòm vòng cổ</span>
+                  <span className="font-mono-num text-zinc-400">{settings.necklaceWidth ?? 100}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={70}
+                  max={150}
+                  value={settings.necklaceWidth ?? 100}
+                  onChange={(e) =>
+                    onChange({ ...settings, necklaceWidth: Number(e.target.value) })
+                  }
+                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-300">Vị trí nâng lên / hạ xuống</span>
+                  <span className="font-mono-num text-zinc-400">
+                    {(settings.necklaceOffsetY ?? 0) > 0 ? `+${settings.necklaceOffsetY}` : settings.necklaceOffsetY ?? 0}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-35}
+                  max={35}
+                  value={settings.necklaceOffsetY ?? 0}
+                  onChange={(e) =>
+                    onChange({ ...settings, necklaceOffsetY: Number(e.target.value) })
+                  }
+                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>

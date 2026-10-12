@@ -59,6 +59,15 @@ export class FaceLandmarkerService {
       try {
         const vision = await FilesetResolver.forVisionTasks('/wasm');
 
+        const landmarkerOptions = {
+          outputFaceBlendshapes: false,
+          runningMode: 'VIDEO' as const,
+          numFaces: 1,
+          minFaceDetectionConfidence: 0.3,
+          minFacePresenceConfidence: 0.3,
+          minTrackingConfidence: 0.28,
+        };
+
         try {
           this.landmarker = await FaceLandmarker.createFromOptions(vision, {
             baseOptions: {
@@ -66,9 +75,7 @@ export class FaceLandmarkerService {
                 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
               delegate: 'GPU',
             },
-            outputFaceBlendshapes: false,
-            runningMode: 'VIDEO',
-            numFaces: 1,
+            ...landmarkerOptions,
           });
         } catch {
           // Fallback to CPU delegate if WebGL/GPU delegate is restricted
@@ -78,9 +85,7 @@ export class FaceLandmarkerService {
                 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
               delegate: 'CPU',
             },
-            outputFaceBlendshapes: false,
-            runningMode: 'VIDEO',
-            numFaces: 1,
+            ...landmarkerOptions,
           });
         }
       } finally {
@@ -95,14 +100,10 @@ export class FaceLandmarkerService {
     if (!this.landmarker || this.isInitializing) return null;
     if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return null;
 
-    if (video.currentTime === this.lastVideoTime) {
-      return null; // Same video frame
-    }
-    this.lastVideoTime = video.currentTime;
-
     // MediaPipe requires strictly monotonically increasing timestamps
     const safeTimestamp = Math.max(Math.floor(timestampMs), this.lastTimestampMs + 1);
     this.lastTimestampMs = safeTimestamp;
+    this.lastVideoTime = video.currentTime;
 
     try {
       const result = this.landmarker.detectForVideo(video, safeTimestamp);

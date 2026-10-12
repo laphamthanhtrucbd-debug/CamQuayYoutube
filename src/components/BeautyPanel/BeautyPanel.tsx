@@ -18,9 +18,11 @@ const SKIN_SLIDERS: SliderItem[] = [
   { key: 'smooth', label: 'Mịn da', hint: 'Làm mịn bề mặt da tự nhiên, giữ nguyên chi tiết mắt và môi' },
   { key: 'brighten', label: 'Làm sáng da', hint: 'Nâng tông da hồng hào rạng rỡ' },
   { key: 'evenTone', label: 'Làm đều màu da', hint: 'Cân bằng sắc tố giữa các vùng trên gương mặt' },
-  { key: 'blemishReduce', label: 'Giảm khuyết điểm', hint: 'Làm mờ nhẹ vết thâm và vùng da không đều' },
-  { key: 'antiShine', label: 'Giảm bóng dầu', hint: 'Kiểm soát độ bóng vùng chữ T, trán và hai bên má' },
-  { key: 'soften', label: 'Làm mềm da', hint: 'Tạo độ mượt dịu nhẹ dưới ánh sáng gắt' },
+  { key: 'acneRemove', label: 'Xóa mụn', hint: 'Nhận diện đúng từng nốt mụn đỏ, mụn sưng, mụn đầu đen để xóa bằng màu da thật xung quanh' },
+  { key: 'blemishReduce', label: 'Xóa khuyết điểm & Quầng thâm', hint: 'Nhận diện quầng thâm đen dưới mắt, vết thâm mụn để che phủ tự nhiên không bôi trắng mặt' },
+  { key: 'freckleRemove', label: 'Xóa tàn nhang', hint: 'Nhận diện và xóa các đốm nâu, tàn nhang cục bộ trên gò má & mũi' },
+  { key: 'antiShine', label: 'Giảm bóng dầu', hint: 'Kiểm soát điểm bóng gắt vùng chữ T, trán và hai bên má' },
+  { key: 'soften', label: 'Làm mềm da', hint: 'Làm dịu bề mặt lỗ chân lông mà vẫn giữ nguyên màu da thật' },
 ];
 
 export const BeautyPanel: React.FC<BeautyPanelProps> = ({ settings, onChange, onReset }) => {

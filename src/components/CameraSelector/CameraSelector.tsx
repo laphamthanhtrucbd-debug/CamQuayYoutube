@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Camera, Mic, MicOff, RefreshCw, FlipHorizontal, AlertTriangle } from 'lucide-react';
+import { Camera, Mic, MicOff, RefreshCw, FlipHorizontal, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { AudioDevice, CameraDevice } from '../../types/camera';
 
 interface CameraSelectorProps {
@@ -204,6 +204,15 @@ export const CameraSelector: React.FC<CameraSelectorProps> = ({
                 ))
               )}
             </select>
+          </div>
+
+          {/* Hardware Noise Suppression Active Indicator */}
+          <div
+            title="Đang bật tính năng Lọc tiếng ồn phần cứng (Hardware Noise Suppression & Echo Cancellation) mượt mà, không gây giật âm thanh."
+            className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg border bg-emerald-950/40 text-emerald-300 border-emerald-600/50 select-none cursor-default"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Lọc ồn chuẩn</span>
           </div>
 
           {/* Refresh hardware list */}

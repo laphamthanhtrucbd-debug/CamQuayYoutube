@@ -8,11 +8,14 @@ import { applyNoseEffect } from '../../effects/noseEffect';
 import { applyEyeEffect } from '../../effects/eyeEffect';
 import { applyLipEffect } from '../../effects/lipEffect';
 import { applyEyebrowEffect } from '../../effects/eyebrowEffect';
+import { applyEyeMakeupEffect } from '../../effects/eyeMakeupEffect';
+import { applyEyelinerEffect } from '../../effects/eyelinerEffect';
 import { applyAREffect } from '../../effects/arEffect';
 import { applyAccessoryEffect } from '../../effects/accessoryEffect';
+import { applyOutfitEffect } from '../../effects/outfitEffect';
+import { applyBackgroundEffect } from '../../effects/backgroundEffect';
 import { applyColorFilterOverlay, getCanvasFilterString } from '../../effects/colorFilter';
 import { isVideoReady } from '../../utils/videoUtils';
-import { processedVideoRecorder } from '../../recording/videoRecorder';
 import { AlertCircle, Camera } from 'lucide-react';
 
 interface CameraPreviewProps {
@@ -21,6 +24,7 @@ interface CameraPreviewProps {
   effects: AllEffectsState;
   cameraError: string | null;
   isLoadingCamera: boolean;
+  isRunMode?: boolean;
   onCanvasReady: (canvas: HTMLCanvasElement) => void;
   onRetryCamera: () => void;
 }
@@ -31,6 +35,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   effects,
   cameraError,
   isLoadingCamera,
+  isRunMode = false,
   onCanvasReady,
   onRetryCamera,
 }) => {
@@ -101,8 +106,6 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
     let lastFpsUpdate = performance.now();
     let lastFaceStatus = false;
 
-    let lastRenderedVideoTime = -1;
-
     const renderLoop = (now: number) => {
       animationFrameId = requestAnimationFrame(renderLoop);
 
@@ -119,13 +122,6 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
       if (!isVideoReady(video)) {
         return;
       }
-
-      // Always draw every available video frame (or at least 30fps) so MediaRecorder.captureStream()
-      // receives a continuous stream of live frames and never produces a black video
-      if (video.currentTime === lastRenderedVideoTime && now - lastFpsUpdate < 30 && !processedVideoRecorder.isRecording()) {
-        return;
-      }
-      lastRenderedVideoTime = video.currentTime;
 
       const width = video.videoWidth || 1280;
       const height = video.videoHeight || 720;
@@ -180,8 +176,13 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
 
       // Step 3: Apply all modular beauty & AR effects when enabled and not holding "Compare Original"
       if (currentEffects.enabled && !currentEffects.compareOriginal) {
+        // 3.0 Virtual Background / Portrait Bokeh Replacement (keeps person, neck & arms sharp)
+        if (currentEffects.background && currentEffects.background.mode !== 'none') {
+          applyBackgroundEffect(outCtx, workCanvas, regions, currentEffects.background, now);
+        }
+
         if (regions) {
-          // 3.1 Skin beauty (uses 0.5x downscaled buffer for 4x speed)
+          // 3.1 Skin beauty across Face + Neck + Chest + Shoulders + Arms
           applySkinEffect(outCtx, workCanvas, regions, currentEffects.skin);
 
           // 3.2 Face shape (slim face, jawline, chin, cheekbone, balance - reads local ROI directly from outCtx)
@@ -193,20 +194,35 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
           // 3.4 Eye beauty (enlarge, under-eye bright, brighten, clarity, catchlight sparkle)
           applyEyeEffect(outCtx, outCanvas, regions, currentEffects.eye);
 
-          // 3.5 Lip makeup (plump, lipstick color, gloss, natural blend)
+          // 3.5 Eye Makeup (16 global eyeshadow styles strictly on the upper eyelid — 100% iris protected)
+          if (currentEffects.eyeMakeup) {
+            applyEyeMakeupEffect(outCtx, regions, currentEffects.eyeMakeup);
+          }
+
+          // 3.6 Eyeliner (16 global eyeliner styles anchored to upper lashline)
+          if (currentEffects.eyeliner) {
+            applyEyelinerEffect(outCtx, regions, currentEffects.eyeliner);
+          }
+
+          // 3.7 Lip makeup (plump, lipstick color, gloss, natural blend)
           applyLipEffect(outCtx, outCanvas, regions, currentEffects.lip);
 
-          // 3.6 Eyebrow grooming (intensity, definition, color, arch lift)
+          // 3.8 Eyebrow grooming (intensity, definition, color, arch lift)
           applyEyebrowEffect(outCtx, outCanvas, regions, currentEffects.eyebrow);
 
-          // 3.7 AR Filter accessories (bunny ears, cat ears, flowers, hearts, stars, sparkle, soft light)
+          // 3.9 AR Filter accessories (bunny ears, cat ears, flowers, hearts, stars, sparkle, soft light)
           applyAREffect(outCtx, regions, currentEffects.ar, now);
 
-          // 3.8 Jewelry & Royal Accessories (Crown, Earrings, Necklace, Cinnabar Glabella Mark)
+          // 3.10 Realistic Outfits & Wardrobe (Áo dài, đầm dạ hội, sơ mi, blazer, áo thun, hoodie...)
+          if (currentEffects.outfit) {
+            applyOutfitEffect(outCtx, regions, currentEffects.outfit);
+          }
+
+          // 3.11 Jewelry & Royal Accessories (Crown, Earrings, Necklace, Cinnabar Glabella Mark)
           applyAccessoryEffect(outCtx, regions, currentEffects.accessory);
         }
 
-        // 3.9 Color grading filter overlay (including Vibrant Oil Painting & Black-and-White)
+        // 3.11 Color grading filter overlay (including Vibrant Oil Painting & Black-and-White)
         applyColorFilterOverlay(outCtx, width, height, currentEffects.colorFilter);
       }
 
@@ -231,7 +247,13 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   }, []);
 
   return (
-    <div className="relative w-full aspect-video bg-zinc-950 border border-zinc-800/90 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl">
+    <div
+      className={
+        isRunMode
+          ? 'fixed inset-0 z-50 w-screen h-screen bg-black overflow-hidden flex items-center justify-center'
+          : 'relative w-full aspect-video bg-zinc-950 border border-zinc-800/90 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl'
+      }
+    >
       {/* Offscreen active video element (kept 1x1px opacity-0 instead of display:none so browsers never suspend USB hardware decoding) */}
       <video
         ref={videoRef}
@@ -244,11 +266,15 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
       {/* Processed Real-time Output Canvas */}
       <canvas
         ref={outputCanvasRef}
-        className="w-full h-full object-contain bg-black"
+        className={
+          isRunMode
+            ? 'w-screen h-screen object-cover bg-black'
+            : 'w-full h-full object-contain bg-black'
+        }
       />
 
-      {/* Subtle Top-Left Live Status Overlay (Unboxed clean metadata per constitution) */}
-      {stream && !cameraError && (
+      {/* Subtle Top-Left Live Status Overlay (Hidden when in Fullscreen Run Mode!) */}
+      {!isRunMode && stream && !cameraError && (
         <div className="absolute top-3.5 left-4 px-3 py-1.5 rounded-lg bg-gradient-to-r from-black/75 via-black/60 to-transparent flex items-center gap-2 text-xs text-zinc-200 pointer-events-none">
           <span
             className={`w-2 h-2 rounded-full ${

@@ -129,8 +129,12 @@ export function applyHorizontalBandSqueeze(
     const normY = (y + h * 0.5 - centerY) / bandHalfHeight; // -1 to 1
     if (Math.abs(normY) >= 1) continue;
 
+    // Asymmetric taper: fades out twice as fast below centerY so the neck below the jaw is NEVER narrowed!
+    const effectiveNormY = normY > 0 ? Math.min(1, normY * 1.25) : normY;
+    if (effectiveNormY >= 1) continue;
+
     // Cosine bell curve along Y
-    const falloffY = 0.5 * (1 + Math.cos(normY * Math.PI));
+    const falloffY = 0.5 * (1 + Math.cos(effectiveNormY * Math.PI));
     // Circular horizontal width at this Y so the warp area is an ellipse inside the face, not a rectangle!
     const ellipseChord = Math.sqrt(Math.max(0.15, 1 - normY * normY * 0.75));
     const rowHalfW = halfWidth * ellipseChord;
