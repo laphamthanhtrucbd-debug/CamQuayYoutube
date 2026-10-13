@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
-import { AudioDevice, CameraDevice } from './types/camera';
+import { AudioDevice, CameraDevice, ResolutionPresetId } from './types/camera';
 import {
   AccessoryEffectSettings,
   AllEffectsState,
@@ -55,25 +55,25 @@ const DEFAULT_OUTFIT_SETTINGS: OutfitEffectSettings = {
   autoSyncNecklace: true,
 };
 
-// Chỉ xóa mụn, xóa khuyết điểm/quầng thâm và tàn nhang mặc định 100%, giữ nguyên 100% khuôn mặt và nền da thật (không làm biến dạng hay bôi bệt mặt)
+// Giữ nguyên 100% hình ảnh thật, không can thiệp bộ lọc pixel khi chưa bật
 const DEFAULT_SKIN_SETTINGS: SkinEffectSettings = {
   smooth: 0,
   brighten: 0,
   evenTone: 0,
-  acneRemove: 100,
-  blemishReduce: 100,
-  freckleRemove: 100,
+  acneRemove: 0,
+  blemishReduce: 0,
+  freckleRemove: 0,
   antiShine: 0,
   soften: 0,
 };
 
-// Giữ nguyên 100% hình dáng mắt gốc (enlarge = 0 mặc định)
+// Giữ nguyên 100% hình dáng mắt gốc
 const DEFAULT_EYE_SETTINGS: EyeEffectSettings = {
-  brighten: 10,
-  sparkle: 15,
+  brighten: 0,
+  sparkle: 0,
   enlarge: 0,
-  underEyeBright: 15,
-  clarity: 10,
+  underEyeBright: 0,
+  clarity: 0,
 };
 
 // Giữ nguyên 100% hình dáng mũi gốc (slim = 0, tipRefine = 0, balance = 0 mặc định)
@@ -235,6 +235,9 @@ export default function App() {
   const [isLoadingCamera, setIsLoadingCamera] = useState<boolean>(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
+  const [resolutionPreset, setResolutionPreset] = useState<ResolutionPresetId>('1080p');
+  const [activeHardwareResolution, setActiveHardwareResolution] = useState<{ width: number; height: number }>({ width: 1920, height: 1080 });
+
   // Navigation state
   const [activeCategory, setActiveCategory] = useState<MainCategoryTab>('beauty');
   const [faceSubTab, setFaceSubTab] = useState<FaceSubTab>('contour');
@@ -269,11 +272,12 @@ export default function App() {
   }, []);
 
   const initOrSwitchCamera = useCallback(
-    async (preferredCameraId?: string, preferredMicId?: string) => {
+    async (preferredCameraId?: string, preferredMicId?: string, targetPreset?: ResolutionPresetId) => {
       setIsLoadingCamera(true);
       setCameraError(null);
+      const chosenPreset = targetPreset || resolutionPreset;
       try {
-        const result = await cameraManager.startCamera(preferredCameraId, preferredMicId);
+        const result = await cameraManager.startCamera(preferredCameraId, preferredMicId, chosenPreset);
         setStream(result.videoStream);
         setAudioStream(result.audioStream);
         setActiveDeviceId(result.cameraId);
@@ -282,6 +286,10 @@ export default function App() {
         setDevices(result.cameras);
         setMics(result.mics);
         setMicError(result.micError);
+        setActiveHardwareResolution({ width: result.width, height: result.height });
+        if (targetPreset) {
+          setResolutionPreset(targetPreset);
+        }
       } catch (err: unknown) {
         const message =
           err instanceof Error
@@ -294,7 +302,16 @@ export default function App() {
         setIsLoadingCamera(false);
       }
     },
-    []
+    [resolutionPreset]
+  );
+
+  const handleSelectResolution = useCallback(
+    (newPreset: ResolutionPresetId) => {
+      setResolutionPreset(newPreset);
+      initOrSwitchCamera(activeDeviceId || undefined, activeMicId || undefined, newPreset);
+      showToast(`Đang chuyển sang độ phân giải: ${newPreset.toUpperCase()}`);
+    },
+    [activeDeviceId, activeMicId, initOrSwitchCamera, showToast]
   );
 
   const handleSelectMic = useCallback(
@@ -641,11 +658,14 @@ export default function App() {
                 isMicEnabled={isMicEnabled}
                 isMirrored={isMirrored}
                 isLoading={isLoadingCamera}
-                onSelectDevice={(id) => initOrSwitchCamera(id, activeMicId || undefined)}
+                resolutionPreset={resolutionPreset}
+                activeHardwareResolution={activeHardwareResolution}
+                onSelectDevice={(id) => initOrSwitchCamera(id, activeMicId || undefined, resolutionPreset)}
                 onSelectMic={handleSelectMic}
                 onToggleMicMute={handleToggleMicMute}
                 onRefreshDevices={handleRefreshDevices}
                 onToggleMirror={() => setIsMirrored((m) => !m)}
+                onSelectResolution={handleSelectResolution}
               />
             </div>
           )}
@@ -658,6 +678,7 @@ export default function App() {
             cameraError={cameraError}
             isLoadingCamera={isLoadingCamera}
             isRunMode={isRunMode}
+            activeHardwareResolution={activeHardwareResolution}
             onCanvasReady={(canvas) => {
               processedCanvasRef.current = canvas;
             }}

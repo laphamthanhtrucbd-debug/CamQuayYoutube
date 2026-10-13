@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AllEffectsState } from '../../types/effects';
+import { NormalizedLandmark } from '../../types/face';
 import { faceLandmarkerService } from '../../face/faceLandmarker';
 import { faceTracker } from '../../face/faceTracking';
 import { applySkinEffect } from '../../effects/skinEffect';
@@ -25,6 +26,7 @@ interface CameraPreviewProps {
   cameraError: string | null;
   isLoadingCamera: boolean;
   isRunMode?: boolean;
+  activeHardwareResolution?: { width: number; height: number };
   onCanvasReady: (canvas: HTMLCanvasElement) => void;
   onRetryCamera: () => void;
 }
@@ -36,6 +38,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   cameraError,
   isLoadingCamera,
   isRunMode = false,
+  activeHardwareResolution,
   onCanvasReady,
   onRetryCamera,
 }) => {
@@ -106,6 +109,9 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
     let lastFpsUpdate = performance.now();
     let lastFaceStatus = false;
 
+    let lastDetectionTime = 0;
+    let cachedLandmarks: NormalizedLandmark[] | null = null;
+
     const renderLoop = (now: number) => {
       animationFrameId = requestAnimationFrame(renderLoop);
 
@@ -123,12 +129,20 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         return;
       }
 
-      const width = video.videoWidth || 1280;
-      const height = video.videoHeight || 720;
+      const trackSettings = stream?.getVideoTracks()[0]?.getSettings() || {};
+      const rawW = activeHardwareResolution?.width || trackSettings.width || video.videoWidth || 1280;
+      const rawH = activeHardwareResolution?.height || trackSettings.height || video.videoHeight || 720;
 
-      if (outCanvas.width !== width || outCanvas.height !== height) {
-        outCanvas.width = width;
-        outCanvas.height = height;
+      // Cap processing working canvas at Full HD for ultra-smooth 60 FPS zero-lag performance during fast motion,
+      // while displaying pristine high-resolution output on the screen.
+      const maxProcW = 1920;
+      const scaleDown = rawW > maxProcW ? maxProcW / rawW : 1.0;
+      const width = Math.round(rawW * scaleDown);
+      const height = Math.round(rawH * scaleDown);
+
+      if (outCanvas.width !== rawW || outCanvas.height !== rawH) {
+        outCanvas.width = rawW;
+        outCanvas.height = rawH;
       }
 
       if (!workCanvasRef.current) {
@@ -161,11 +175,20 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
       workCtx.drawImage(video, 0, 0, width, height);
       workCtx.restore();
 
-      // Copy initial frame to output canvas
-      outCtx.drawImage(workCanvas, 0, 0);
+      // Draw processed workCanvas smoothly to high-res output canvas
+      outCtx.save();
+      outCtx.imageSmoothingEnabled = true;
+      outCtx.imageSmoothingQuality = 'high';
+      outCtx.drawImage(workCanvas, 0, 0, width, height, 0, 0, rawW, rawH);
+      outCtx.restore();
 
-      // Step 2: Detect real face landmarks via MediaPipe FaceLandmarker
-      const rawLandmarks = faceLandmarkerService.detect(video, now);
+      // Step 2: Detect real face landmarks throttled to 30 FPS (every 32ms) to guarantee 60 FPS buttery-smooth canvas rendering without any micro-stutters
+      let rawLandmarks = cachedLandmarks;
+      if (now - lastDetectionTime >= 32) {
+        lastDetectionTime = now;
+        rawLandmarks = faceLandmarkerService.detect(video, now);
+        cachedLandmarks = rawLandmarks;
+      }
       const regions = faceTracker.update(rawLandmarks, width, height, mirrored);
 
       const hasFace = !!regions;

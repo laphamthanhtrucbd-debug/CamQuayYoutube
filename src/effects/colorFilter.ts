@@ -88,48 +88,6 @@ function getGlobalFilterBuffer(width: number, height: number): HTMLCanvasElement
   return globalFilterBuffer;
 }
 
-let oilTexturePatternCanvas: HTMLCanvasElement | null = null;
-function getOilCanvasTexture(): HTMLCanvasElement {
-  if (oilTexturePatternCanvas) return oilTexturePatternCanvas;
-  const c = document.createElement('canvas');
-  c.width = 112;
-  c.height = 112;
-  const ctx = c.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = '#808080';
-    ctx.fillRect(0, 0, 112, 112);
-
-    for (let i = 0; i < 160; i++) {
-      const x = (i * 31) % 112;
-      const y = (i * 59) % 112;
-      const len = 14 + (i % 16);
-      const angle = ((i % 7) - 3) * 0.16;
-
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(angle);
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
-      ctx.lineWidth = 2.4;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-len / 2, 0);
-      ctx.quadraticCurveTo(0, -2.2, len / 2, 0);
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.32)';
-      ctx.lineWidth = 2.0;
-      ctx.beginPath();
-      ctx.moveTo(-len / 2, 2);
-      ctx.quadraticCurveTo(0, -0.2, len / 2, 2);
-      ctx.stroke();
-
-      ctx.restore();
-    }
-  }
-  oilTexturePatternCanvas = c;
-  return c;
-}
 
 /**
  * We now apply all global color grading AT THE VERY END of the pipeline (`applyGlobalColorFilter`)
@@ -177,15 +135,6 @@ export function applyColorFilterOverlay(
       ctx.globalAlpha = 0.42 * t;
       ctx.drawImage(buf, 0, 0);
 
-      // 3. Crisp oil-painting impasto texture & detail pass across the entire frame
-      const texCanvas = getOilCanvasTexture();
-      const pattern = ctx.createPattern(texCanvas, 'repeat');
-      if (pattern) {
-        ctx.globalCompositeOperation = 'overlay';
-        ctx.globalAlpha = 0.32 * t;
-        ctx.fillStyle = pattern;
-        ctx.fillRect(0, 0, width, height);
-      }
       break;
     }
     case 'bw': {

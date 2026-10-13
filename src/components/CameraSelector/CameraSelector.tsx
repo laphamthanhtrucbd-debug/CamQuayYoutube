@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Camera, Mic, MicOff, RefreshCw, FlipHorizontal, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { AudioDevice, CameraDevice } from '../../types/camera';
+import { AudioDevice, CameraDevice, ResolutionPresetId, RESOLUTION_PRESETS } from '../../types/camera';
 
 interface CameraSelectorProps {
   devices: CameraDevice[];
@@ -13,11 +13,14 @@ interface CameraSelectorProps {
   isMicEnabled: boolean;
   isMirrored: boolean;
   isLoading: boolean;
+  resolutionPreset: ResolutionPresetId;
+  activeHardwareResolution?: { width: number; height: number };
   onSelectDevice: (deviceId: string) => void;
   onSelectMic: (micId: string) => void;
   onToggleMicMute: () => void;
   onRefreshDevices: () => void;
   onToggleMirror: () => void;
+  onSelectResolution: (presetId: ResolutionPresetId) => void;
 }
 
 export const CameraSelector: React.FC<CameraSelectorProps> = ({
@@ -31,11 +34,14 @@ export const CameraSelector: React.FC<CameraSelectorProps> = ({
   isMicEnabled,
   isMirrored,
   isLoading,
+  resolutionPreset,
+  activeHardwareResolution,
   onSelectDevice,
   onSelectMic,
   onToggleMicMute,
   onRefreshDevices,
   onToggleMirror,
+  onSelectResolution,
 }) => {
   const [micLevel, setMicLevel] = useState<number>(0);
 
@@ -239,6 +245,34 @@ export const CameraSelector: React.FC<CameraSelectorProps> = ({
             <FlipHorizontal className="w-3.5 h-3.5" />
             <span>Lật gương</span>
           </button>
+
+          {/* Quick Resolution Comparison Buttons: 720p, 1080p, 2K, 4K, 8K */}
+          <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+            <span className="text-[11px] font-medium text-zinc-400 px-1 hidden md:inline">Độ phân giải:</span>
+            {RESOLUTION_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => onSelectResolution(preset.id)}
+                className={`px-2 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
+                  resolutionPreset === preset.id
+                    ? 'bg-rose-600 text-white shadow'
+                    : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                }`}
+                title={`So sánh chất lượng độ phân giải ${preset.label}`}
+              >
+                {preset.shortLabel}
+              </button>
+            ))}
+            {activeHardwareResolution && (
+              <span
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800/90 text-emerald-300 font-semibold border border-zinc-700 whitespace-nowrap ml-1"
+                title="Độ phân giải thực tế đang nhận từ cảm biến camera"
+              >
+                {activeHardwareResolution.width}×{activeHardwareResolution.height}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

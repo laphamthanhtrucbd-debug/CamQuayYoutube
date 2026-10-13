@@ -6,7 +6,8 @@ let localPatchCanvas: HTMLCanvasElement | null = null;
 let bgSkinCanvas: HTMLCanvasElement | null = null;
 let maskCanvas: HTMLCanvasElement | null = null;
 
-const DOWNSCALE = 0.5;
+// Optimized responsive downscaling for 60FPS real-time performance without main-thread lag
+const DOWNSCALE = 0.25;
 
 function getCanvases(width: number, height: number): {
   patchCanvas: HTMLCanvasElement;

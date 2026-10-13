@@ -1,4 +1,4 @@
-import { AudioDevice, CameraDevice } from '../types/camera';
+import { AudioDevice, CameraDevice, ResolutionPresetId, RESOLUTION_PRESETS } from '../types/camera';
 import {
   enumerateAudioDevices,
   enumerateCameraDevices,
@@ -16,7 +16,8 @@ export class CameraManager {
 
   public async startCamera(
     cameraDeviceId?: string,
-    micDeviceId?: string
+    micDeviceId?: string,
+    resolutionPreset: ResolutionPresetId = '1080p'
   ): Promise<{
     videoStream: MediaStream;
     audioStream: MediaStream | null;
@@ -33,29 +34,45 @@ export class CameraManager {
     // Small hardware release delay for Windows USB UVC drivers when switching cameras
     await new Promise((resolve) => setTimeout(resolve, 60));
 
+    const selectedPreset = RESOLUTION_PRESETS.find((p) => p.id === resolutionPreset) || RESOLUTION_PRESETS[1];
+    const targetW = selectedPreset.width;
+    const targetH = selectedPreset.height;
+
     // Helper to try opening a specific camera (or default) with progressive resolution fallbacks
     const tryOpenVideoDevice = async (deviceId?: string): Promise<MediaStream> => {
       const constraintAttempts: MediaStreamConstraints[] = deviceId
         ? [
-            // Attempt 1: HD 720p with exact deviceId
+            // Attempt 1: User's requested resolution preset (720p, 1080p, 2K, 4K, 8K)
+            {
+              video: {
+                deviceId: { exact: deviceId },
+                width: { ideal: targetW },
+                height: { ideal: targetH },
+                frameRate: { ideal: 60, min: 30 },
+              },
+              audio: false,
+            },
+            // Attempt 2: Fallback to 1080p if higher res unsupported by hardware
+            {
+              video: {
+                deviceId: { exact: deviceId },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                frameRate: { ideal: 60, min: 30 },
+              },
+              audio: false,
+            },
+            // Attempt 3: Fallback to 720p
             {
               video: {
                 deviceId: { exact: deviceId },
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
+                frameRate: { ideal: 60, min: 30 },
               },
               audio: false,
             },
-            // Attempt 2: Standard VGA 480p with exact deviceId (many USB webcams require 640x480)
-            {
-              video: {
-                deviceId: { exact: deviceId },
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-              },
-              audio: false,
-            },
-            // Attempt 3: Pure native hardware mode with exact deviceId (no width/height/fps limits)
+            // Attempt 4: Pure native hardware mode with exact deviceId
             {
               video: {
                 deviceId: { exact: deviceId },
@@ -64,6 +81,19 @@ export class CameraManager {
             },
           ]
         : [
+            // Default attempts based on user's requested preset
+            {
+              video: {
+                width: { ideal: targetW },
+                height: { ideal: targetH },
+                frameRate: { ideal: 60, min: 30 },
+              },
+              audio: false,
+            },
+            {
+              video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, min: 30 } },
+              audio: false,
+            },
             {
               video: { width: { ideal: 1280 }, height: { ideal: 720 } },
               audio: false,
